@@ -70,6 +70,7 @@ def check_websites(request):
 
     websites = Website.objects.all()
     for website in websites:
+        print(website.url)
         # raw_url –> urn
         raw_url = website.url
         if raw_url.startswith("http://") or raw_url.startswith("https://"):
@@ -84,13 +85,18 @@ def check_websites(request):
             reason = res.reason
             server = res.headers.get('Server')
             ip_address = socket.gethostbyname(raw_url)
-
+            print(ip_address)
             WebsiteAvailability.objects.create(website=website, response_status_code=response_status_code,
                                                reason=reason, server=server, ip_address=ip_address)
+
             checked_websites_count += 1
         except OperationalError as e:
             return Response({"detail": str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception:
+        except Exception as e:
+            WebsiteAvailability.objects.create(website=website, reason=str(e))
+            print(str(e))
             failed_urls.append(website.url)
+            print(failed_urls)
+
     print(failed_urls)
     return Response(f"Checked websites number: {checked_websites_count}", status=HTTP_200_OK)

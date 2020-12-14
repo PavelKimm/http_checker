@@ -13,10 +13,10 @@ class Website(models.Model):
 
 class WebsiteAvailability(models.Model):
     website = models.ForeignKey(Website, on_delete=models.CASCADE)
-    response_status_code = models.SmallIntegerField()
+    response_status_code = models.SmallIntegerField(null=True)
     reason = models.TextField()
-    ip_address = models.CharField(max_length=50)
-    server = models.CharField(max_length=200)
+    ip_address = models.CharField(max_length=50, null=True)
+    server = models.CharField(max_length=200, null=True)
     checked_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
