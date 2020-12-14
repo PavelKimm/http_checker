@@ -1,10 +1,11 @@
+import socket
+import requests
 import openpyxl
 
-import requests
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import transaction
+from django.db import transaction, OperationalError
 from django.db.models import Q
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
@@ -18,7 +19,7 @@ from rest_framework.status import (
     HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_201_CREATED
 )
 
-from analyzer.models import Website
+from analyzer.models import Website, WebsiteAvailability
 
 START_ROW = 2
 
@@ -55,4 +56,41 @@ def load_websites_to_check(request):
                     passed_urls_count += 1
 
     return Response(f"The insertion has been completed. Inserted urls number: {inserted_urls_count}. "
-                    f"Passed urls number: {passed_urls_count}", status=200)
+                    f"Passed urls number: {passed_urls_count}", status=HTTP_200_OK)
+
+
+@api_view(['POST'])
+def check_websites(request):
+    """
+    check websites availability with logging to the database
+    """
+
+    checked_websites_count = 0
+    failed_urls = []
+
+    websites = Website.objects.all()
+    for website in websites:
+        # raw_url –> urn
+        raw_url = website.url
+        if raw_url.startswith("http://") or raw_url.startswith("https://"):
+            url = raw_url
+            raw_url = raw_url.split("://")[-1]
+        else:
+            url = "http://" + raw_url
+
+        try:
+            res = requests.get(url)
+            response_status_code = res.status_code
+            reason = res.reason
+            server = res.headers.get('Server')
+            ip_address = socket.gethostbyname(raw_url)
+
+            WebsiteAvailability.objects.create(website=website, response_status_code=response_status_code,
+                                               reason=reason, server=server, ip_address=ip_address)
+            checked_websites_count += 1
+        except OperationalError as e:
+            return Response({"detail": str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            failed_urls.append(website.url)
+    print(failed_urls)
+    return Response(f"Checked websites number: {checked_websites_count}", status=HTTP_200_OK)

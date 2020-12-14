@@ -18,7 +18,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
-# admin.site.enable_nav_sidebar = False
+admin.site.enable_nav_sidebar = False
 
 api_patterns = [
     path('analyzer/', include('analyzer.urls')),
