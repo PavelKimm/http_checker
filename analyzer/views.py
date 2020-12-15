@@ -1,22 +1,12 @@
 import socket
-import requests
-import openpyxl
 
-from django.conf import settings
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ObjectDoesNotExist
-from django.db import transaction, OperationalError
-from django.db.models import Q
-from rest_framework import generics
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import ValidationError
-from rest_framework.generics import get_object_or_404
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.views import APIView
+import openpyxl
+import requests
+from django.db import OperationalError
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.status import (
-    HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_401_UNAUTHORIZED,
-    HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_201_CREATED
+    HTTP_200_OK, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR
 )
 
 from analyzer.models import Website, WebsiteAvailability
@@ -54,7 +44,7 @@ def load_websites_to_check(request):
                     Website.objects.create(url=cell.value.strip())
                     inserted_urls_count += 1
                 except Exception as e:
-                    # print(str(e))
+                    print(str(e))
                     passed_urls_count += 1
 
     return Response(f"The insertion has been completed. Inserted urls number: {inserted_urls_count}. "
@@ -76,7 +66,7 @@ def check_websites(request):
         if start_from_id:
             if start_from_id > website.id:
                 continue
-        print(website.url)
+        print(f"{website.url} in process...")
         # raw_url == urn
         raw_url = website.url
         if raw_url.startswith("http://") or raw_url.startswith("https://"):
@@ -92,7 +82,6 @@ def check_websites(request):
             reason = res.reason
             server = res.headers.get('Server')
             ip_address = socket.gethostbyname(raw_url)
-            print(ip_address)
             WebsiteAvailability.objects.create(website=website, response_status_code=response_status_code,
                                                reason=reason, server=server, ip_address=ip_address)
 
@@ -115,10 +104,9 @@ def get_website_info_by_url(request):
     get website check information by url
     """
     url = request.query_params.get('url')
-    try:
-        # getting information of the last check
-        check_info = WebsiteAvailability.objects.filter(website__url=url).order_by('-checked_at').first()
-    except WebsiteAvailability.DoesNotExist as e:
-        return Response({"detail": str(e)}, status=HTTP_404_NOT_FOUND)
+
+    check_info = WebsiteAvailability.objects.filter(website__url=url).order_by('-checked_at').first()
+    if not check_info:
+        return Response({"detail": "This website hasn't been checked yet!"}, status=HTTP_404_NOT_FOUND)
     serializer = WebsiteAvailabilityDetailSerializer(check_info)
     return Response(serializer.data, status=HTTP_200_OK)
