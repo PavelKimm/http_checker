@@ -5,7 +5,7 @@ class Website(models.Model):
     url = models.CharField(max_length=2048, unique=True)
 
     class Meta:
-        ordering = ('url',)
+        ordering = ('id',)
 
     def __str__(self):
         return self.url
@@ -20,7 +20,7 @@ class WebsiteAvailability(models.Model):
     checked_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ('website__url', '-id')
+        ordering = ('-id',)
         verbose_name_plural = "Website availabilities"
 
     def __str__(self):

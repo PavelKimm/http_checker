@@ -20,8 +20,10 @@ from rest_framework.status import (
 )
 
 from analyzer.models import Website, WebsiteAvailability
+from analyzer.serializers import WebsiteAvailabilityDetailSerializer
 
-START_ROW = 2
+START_ROW = 2  # starting row in excel file
+TIMEOUT = 10  # waiting for the website responds
 
 
 @api_view(['POST'])
@@ -65,13 +67,17 @@ def check_websites(request):
     check websites availability with logging to the database
     """
 
+    start_from_id = request.data.get('start_from_id')
     checked_websites_count = 0
-    failed_urls = []
+    failed_websites = []
 
-    websites = Website.objects.all()
+    websites = Website.objects.order_by('id')
     for website in websites:
+        if start_from_id:
+            if start_from_id > website.id:
+                continue
         print(website.url)
-        # raw_url –> urn
+        # raw_url == urn
         raw_url = website.url
         if raw_url.startswith("http://") or raw_url.startswith("https://"):
             url = raw_url
@@ -80,7 +86,8 @@ def check_websites(request):
             url = "http://" + raw_url
 
         try:
-            res = requests.get(url)
+            res = requests.get(url, timeout=TIMEOUT)
+
             response_status_code = res.status_code
             reason = res.reason
             server = res.headers.get('Server')
@@ -94,9 +101,24 @@ def check_websites(request):
             return Response({"detail": str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             WebsiteAvailability.objects.create(website=website, reason=str(e))
-            print(str(e))
-            failed_urls.append(website.url)
-            print(failed_urls)
-
-    print(failed_urls)
+            failed_websites.append({
+                "id": website.id,
+                "url": website.url
+            })
+    print(failed_websites)
     return Response(f"Checked websites number: {checked_websites_count}", status=HTTP_200_OK)
+
+
+@api_view(['GET'])
+def get_website_info_by_url(request):
+    """
+    get website check information by url
+    """
+    url = request.query_params.get('url')
+    try:
+        # getting information of the last check
+        check_info = WebsiteAvailability.objects.filter(website__url=url).order_by('-checked_at').first()
+    except WebsiteAvailability.DoesNotExist as e:
+        return Response({"detail": str(e)}, status=HTTP_404_NOT_FOUND)
+    serializer = WebsiteAvailabilityDetailSerializer(check_info)
+    return Response(serializer.data, status=HTTP_200_OK)
